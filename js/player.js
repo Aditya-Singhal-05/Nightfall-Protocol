@@ -103,6 +103,7 @@ export class Player {
     let joyCenter = { x: 0, y: 0 };
 
     joyBase.addEventListener('touchstart', (e) => {
+      e.preventDefault(); // PREVENTS SYNTHETIC MOUSEDOWN EVENT
       e.stopPropagation();
       const touch = e.changedTouches[0];
       joyTouchId = touch.identifier;
@@ -111,6 +112,7 @@ export class Player {
     }, { passive: false });
 
     joyBase.addEventListener('touchmove', (e) => {
+      e.preventDefault(); // PREVENTS SYNTHETIC MOUSEMOVE EVENT
       e.stopPropagation();
       for (let touch of e.changedTouches) {
         if (touch.identifier === joyTouchId) {
@@ -130,6 +132,7 @@ export class Player {
     }, { passive: false });
 
     const resetJoy = (e) => {
+      e.preventDefault();
       e.stopPropagation();
       for (let touch of e.changedTouches) {
         if (touch.identifier === joyTouchId) {
@@ -139,8 +142,8 @@ export class Player {
         }
       }
     };
-    joyBase.addEventListener('touchend', resetJoy);
-    joyBase.addEventListener('touchcancel', resetJoy);
+    joyBase.addEventListener('touchend', resetJoy, { passive: false });
+    joyBase.addEventListener('touchcancel', resetJoy, { passive: false });
 
     // Right Side Screen Drag Area (LOOK ONLY)
     const lookArea = document.createElement('div');
@@ -192,9 +195,9 @@ export class Player {
         display: flex; align-items: center; justify-content: center;
         pointer-events: auto; touch-action: none;
       `;
-      btn.addEventListener('touchstart', (e) => { e.stopPropagation(); onClick(true); }, { passive: false });
-      btn.addEventListener('touchend', (e) => { e.stopPropagation(); onClick(false); }, { passive: false });
-      btn.addEventListener('touchcancel', (e) => { e.stopPropagation(); onClick(false); }, { passive: false });
+      btn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); onClick(true); }, { passive: false });
+      btn.addEventListener('touchend', (e) => { e.preventDefault(); e.stopPropagation(); onClick(false); }, { passive: false });
+      btn.addEventListener('touchcancel', (e) => { e.preventDefault(); e.stopPropagation(); onClick(false); }, { passive: false });
       return btn;
     };
 
