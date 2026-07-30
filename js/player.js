@@ -23,7 +23,7 @@ export class Player {
     this.onGround = true;
     this.crouching = false;
     this.sprinting = false;
-    this.aiming = false; // Initialized aim state
+    this.aiming = false;
     this.locked = false;
 
     this.health = 100;
@@ -39,18 +39,32 @@ export class Player {
     this.keys = {};
     this.mouseDelta = { x: 0, y: 0 };
 
+    // Mobile Control States
+    this.isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    this.touchMove = { x: 0, y: 0 }; // Virtual Joystick (-1 to 1)
+    this.touchLookId = null;
+    this.lastTouchLook = { x: 0, y: 0 };
+    this.mobileJump = false;
+
+    this._bindListeners();
+    this._initListeners();
+
+    if (this.isMobile) {
+      this._createMobileUI();
+    }
+  }
+
+  _bindListeners() {
     this._boundKeyDown = (e) => { this.keys[e.code] = true; };
     this._boundKeyUp = (e) => { this.keys[e.code] = false; };
     this._boundMouseMove = (e) => {
-      if (!this.locked) return;
+      if (!this.locked && !this.isMobile) return;
       this.mouseDelta.x += e.movementX || 0;
       this.mouseDelta.y += e.movementY || 0;
     };
     this._boundPointerLock = () => {
       this.locked = document.pointerLockElement === this.dom;
     };
-
-    this._initListeners();
   }
 
   _initListeners() {
@@ -60,15 +74,155 @@ export class Player {
     document.addEventListener('pointerlockchange', this._boundPointerLock);
   }
 
+  // --- Mobile Touch Controls Setup ---
+  _createMobileUI() {
+    this.uiContainer = document.createElement('div');
+    this.uiContainer.style.cssText = `
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; user-select: none; z-index: 9999;
+    `;
+
+    // Left Joystick Area
+    const joyBase = document.createElement('div');
+    joyBase.style.cssText = `
+      position: absolute; bottom: 40px; left: 40px; width: 120px; height: 120px;
+      border-radius: 50%; background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.3);
+      pointer-events: auto; touch-action: none;
+    `;
+
+    const joyStick = document.createElement('div');
+    joyStick.style.cssText = `
+      position: absolute; top: 35px; left: 35px; width: 50px; height: 50px;
+      border-radius: 50%; background: rgba(255,255,255,0.5); pointer-events: none;
+    `;
+    joyBase.appendChild(joyStick);
+
+    // Joystick Touch Handling
+    let joyTouchId = null;
+    let joyCenter = { x: 0, y: 0 };
+
+    joyBase.addEventListener('touchstart', (e) => {
+      const touch = e.changedTouches[0];
+      joyTouchId = touch.identifier;
+      const rect = joyBase.getBoundingClientRect();
+      joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    });
+
+    joyBase.addEventListener('touchmove', (e) => {
+      for (let touch of e.changedTouches) {
+        if (touch.identifier === joyTouchId) {
+          const dx = touch.clientX - joyCenter.x;
+          const dy = touch.clientY - joyCenter.y;
+          const dist = Math.min(Math.hypot(dx, dy), 50);
+          const angle = Math.atan2(dy, dx);
+
+          const stickX = Math.cos(angle) * dist;
+          const stickY = Math.sin(angle) * dist;
+          joyStick.style.transform = `translate(${stickX}px, ${stickY}px)`;
+
+          this.touchMove.x = stickX / 50;
+          this.touchMove.y = -stickY / 50; // Invert Y for forward/back
+        }
+      }
+    });
+
+    const resetJoy = (e) => {
+      for (let touch of e.changedTouches) {
+        if (touch.identifier === joyTouchId) {
+          joyTouchId = null;
+          joyStick.style.transform = `translate(0px, 0px)`;
+          this.touchMove = { x: 0, y: 0 };
+        }
+      }
+    };
+    joyBase.addEventListener('touchend', resetJoy);
+    joyBase.addEventListener('touchcancel', resetJoy);
+
+    // Right Side Touch Screen Look Area
+    const lookArea = document.createElement('div');
+    lookArea.style.cssText = `
+      position: absolute; top: 0; right: 0; width: 50%; height: 100%;
+      pointer-events: auto; touch-action: none;
+    `;
+
+    lookArea.addEventListener('touchstart', (e) => {
+      if (this.touchLookId !== null) return;
+      const touch = e.changedTouches[0];
+      this.touchLookId = touch.identifier;
+      this.lastTouchLook = { x: touch.clientX, y: touch.clientY };
+    });
+
+    lookArea.addEventListener('touchmove', (e) => {
+      for (let touch of e.changedTouches) {
+        if (touch.identifier === this.touchLookId) {
+          const dx = touch.clientX - this.lastTouchLook.x;
+          const dy = touch.clientY - this.lastTouchLook.y;
+
+          this.mouseDelta.x += dx * 1.5;
+          this.mouseDelta.y += dy * 1.5;
+
+          this.lastTouchLook = { x: touch.clientX, y: touch.clientY };
+        }
+      }
+    });
+
+    const resetLook = (e) => {
+      for (let touch of e.changedTouches) {
+        if (touch.identifier === this.touchLookId) {
+          this.touchLookId = null;
+        }
+      }
+    };
+    lookArea.addEventListener('touchend', resetLook);
+    lookArea.addEventListener('touchcancel', resetLook);
+
+    // Helper Action Buttons (Jump, Crouch, Sprint)
+    const createBtn = (text, bottom, right, onClick) => {
+      const btn = document.createElement('div');
+      btn.innerText = text;
+      btn.style.cssText = `
+        position: absolute; bottom: ${bottom}px; right: ${right}px;
+        width: 60px; height: 60px; border-radius: 50%;
+        background: rgba(255,255,255,0.25); border: 2px solid #fff;
+        color: #fff; font-family: sans-serif; font-weight: bold; font-size: 14px;
+        display: flex; align-items: center; justify-content: center;
+        pointer-events: auto; touch-action: none;
+      `;
+      btn.addEventListener('touchstart', (e) => { e.preventDefault(); onClick(true); });
+      btn.addEventListener('touchend', (e) => { e.preventDefault(); onClick(false); });
+      return btn;
+    };
+
+    const jumpBtn = createBtn('JUMP', 40, 40, (val) => { this.mobileJump = val; });
+    const crouchBtn = createBtn('CROUCH', 40, 115, (val) => { this.keys['ControlLeft'] = val; });
+    const sprintBtn = createBtn('RUN', 115, 40, (val) => { this.keys['ShiftLeft'] = val; });
+
+    this.uiContainer.appendChild(joyBase);
+    this.uiContainer.appendChild(lookArea);
+    this.uiContainer.appendChild(jumpBtn);
+    this.uiContainer.appendChild(crouchBtn);
+    this.uiContainer.appendChild(sprintBtn);
+
+    document.body.appendChild(this.uiContainer);
+  }
+
   destroy() {
     window.removeEventListener('keydown', this._boundKeyDown);
     window.removeEventListener('keyup', this._boundKeyUp);
     document.removeEventListener('mousemove', this._boundMouseMove);
     document.removeEventListener('pointerlockchange', this._boundPointerLock);
+
+    if (this.uiContainer) {
+      this.uiContainer.remove();
+    }
   }
 
-  requestLock() { this.dom.requestPointerLock(); }
-  exitLock() { document.exitPointerLock(); }
+  requestLock() { 
+    if (!this.isMobile) this.dom.requestPointerLock(); 
+  }
+  exitLock() { 
+    if (!this.isMobile) document.exitPointerLock(); 
+  }
 
   takeDamage(amount, dirVec) {
     if (!this.alive) return;
@@ -104,9 +258,15 @@ export class Player {
     this.targetHeight = this.crouching ? EYE_HEIGHT_CROUCH : EYE_HEIGHT_STAND;
     this.height = damp(this.height, this.targetHeight, 12, dt);
 
-    // ---- movement input ----
-    const forward = (this.keys['KeyW'] ? 1 : 0) - (this.keys['KeyS'] ? 1 : 0);
-    const strafe = (this.keys['KeyD'] ? 1 : 0) - (this.keys['KeyA'] ? 1 : 0);
+    // ---- movement input (Keyboard OR Virtual Joystick) ----
+    let forward = (this.keys['KeyW'] ? 1 : 0) - (this.keys['KeyS'] ? 1 : 0);
+    let strafe = (this.keys['KeyD'] ? 1 : 0) - (this.keys['KeyA'] ? 1 : 0);
+
+    if (this.isMobile) {
+      forward = this.touchMove.y;
+      strafe = this.touchMove.x;
+    }
+
     const moving = forward !== 0 || strafe !== 0;
     this.sprinting = !!this.keys['ShiftLeft'] && forward > 0 && !this.crouching && this.stamina > 1;
 
@@ -117,20 +277,21 @@ export class Player {
     this.currentSpeed = moving ? speed : 0;
 
     const dir = new THREE.Vector3(strafe, 0, -forward);
-    if (dir.lengthSq() > 0) dir.normalize();
+    if (dir.lengthSq() > 1) dir.normalize();
     dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
 
     this.velocity.x = dir.x * speed;
     this.velocity.z = dir.z * speed;
 
     // ---- gravity / jump ----
-    if (this.onGround && this.keys['Space']) {
+    const wantsJump = this.keys['Space'] || this.mobileJump;
+    if (this.onGround && wantsJump) {
       this.velocity.y = JUMP_SPEED;
       this.onGround = false;
     }
     if (!this.onGround) this.velocity.y += GRAVITY * dt;
 
-    // ---- integrate Y first for cleaner grounding ----
+    // ---- integrate Y ----
     this.position.y += this.velocity.y * dt;
     if (this.position.y <= 0) {
       this.position.y = 0;
@@ -155,7 +316,6 @@ export class Player {
       this.bobTime += dt * bobSpeed;
       this.bobAmount = damp(this.bobAmount, this.crouching ? 0.03 : 0.055, 10, dt);
       
-      // Play footstep on both peak and trough (left and right step)
       const currentSign = Math.sign(Math.sin(this.bobTime));
       if (this._lastStepSign !== undefined && this._lastStepSign !== currentSign) {
         playFootstep(this.sprinting ? 0.22 : 0.13);
