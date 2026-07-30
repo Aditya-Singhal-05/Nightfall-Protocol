@@ -23,6 +23,7 @@ export class Player {
     this.onGround = true;
     this.crouching = false;
     this.sprinting = false;
+    this.aiming = false; // Initialized aim state
     this.locked = false;
 
     this.health = 100;
@@ -38,20 +39,32 @@ export class Player {
     this.keys = {};
     this.mouseDelta = { x: 0, y: 0 };
 
+    this._boundKeyDown = (e) => { this.keys[e.code] = true; };
+    this._boundKeyUp = (e) => { this.keys[e.code] = false; };
+    this._boundMouseMove = (e) => {
+      if (!this.locked) return;
+      this.mouseDelta.x += e.movementX || 0;
+      this.mouseDelta.y += e.movementY || 0;
+    };
+    this._boundPointerLock = () => {
+      this.locked = document.pointerLockElement === this.dom;
+    };
+
     this._initListeners();
   }
 
   _initListeners() {
-    window.addEventListener('keydown', (e) => { this.keys[e.code] = true; });
-    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
-    document.addEventListener('mousemove', (e) => {
-      if (!this.locked) return;
-      this.mouseDelta.x += e.movementX || 0;
-      this.mouseDelta.y += e.movementY || 0;
-    });
-    document.addEventListener('pointerlockchange', () => {
-      this.locked = document.pointerLockElement === this.dom;
-    });
+    window.addEventListener('keydown', this._boundKeyDown);
+    window.addEventListener('keyup', this._boundKeyUp);
+    document.addEventListener('mousemove', this._boundMouseMove);
+    document.addEventListener('pointerlockchange', this._boundPointerLock);
+  }
+
+  destroy() {
+    window.removeEventListener('keydown', this._boundKeyDown);
+    window.removeEventListener('keyup', this._boundKeyUp);
+    document.removeEventListener('mousemove', this._boundMouseMove);
+    document.removeEventListener('pointerlockchange', this._boundPointerLock);
   }
 
   requestLock() { this.dom.requestPointerLock(); }
@@ -83,7 +96,8 @@ export class Player {
     this.yaw -= this.mouseDelta.x * sensitivity;
     this.pitch -= this.mouseDelta.y * sensitivity;
     this.pitch = clamp(this.pitch, -Math.PI / 2 + 0.05, Math.PI / 2 - 0.05);
-    this.mouseDelta.x = 0; this.mouseDelta.y = 0;
+    this.mouseDelta.x = 0; 
+    this.mouseDelta.y = 0;
 
     // ---- crouch / height ----
     this.crouching = !!this.keys['ControlLeft'] || !!this.keys['KeyC'];
@@ -116,16 +130,19 @@ export class Player {
     }
     if (!this.onGround) this.velocity.y += GRAVITY * dt;
 
-    // ---- integrate ----
-    this.position.x += this.velocity.x * dt;
-    this.position.z += this.velocity.z * dt;
-    resolveCollisions(this.position, RADIUS, this.height, colliders);
-
+    // ---- integrate Y first for cleaner grounding ----
     this.position.y += this.velocity.y * dt;
     if (this.position.y <= 0) {
       this.position.y = 0;
       this.velocity.y = 0;
       this.onGround = true;
+    }
+
+    // ---- integrate X/Z and resolve colliders ----
+    this.position.x += this.velocity.x * dt;
+    this.position.z += this.velocity.z * dt;
+    if (colliders) {
+      resolveCollisions(this.position, RADIUS, this.height, colliders);
     }
 
     // world bounds safety net
@@ -137,13 +154,16 @@ export class Player {
       const bobSpeed = this.sprinting ? 14 : (this.crouching ? 7 : 10);
       this.bobTime += dt * bobSpeed;
       this.bobAmount = damp(this.bobAmount, this.crouching ? 0.03 : 0.055, 10, dt);
-      const stepPhase = Math.sin(this.bobTime);
-      if (!this._lastStepPhase || (this._lastStepPhase < 0 && stepPhase >= 0)) {
+      
+      // Play footstep on both peak and trough (left and right step)
+      const currentSign = Math.sign(Math.sin(this.bobTime));
+      if (this._lastStepSign !== undefined && this._lastStepSign !== currentSign) {
         playFootstep(this.sprinting ? 0.22 : 0.13);
       }
-      this._lastStepPhase = stepPhase;
+      this._lastStepSign = currentSign;
     } else {
       this.bobAmount = damp(this.bobAmount, 0, 8, dt);
+      this._lastStepSign = undefined;
     }
 
     // ---- camera shake decay ----
@@ -160,8 +180,8 @@ export class Player {
     const shakeY = (Math.cos(this.camShakeTime * 2.7) * this.camShakeMag * 0.6);
 
     this.camera.position.set(
-      this.position.x + bobX,
-      this.position.y + this.height + bobY,
+      this.position.x + bobX + shakeX * 0.05,
+      this.position.y + this.height + bobY + shakeY * 0.05,
       this.position.z
     );
     this.camera.rotation.order = 'YXZ';
