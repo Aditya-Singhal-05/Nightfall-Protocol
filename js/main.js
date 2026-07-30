@@ -123,13 +123,15 @@ document.addEventListener('pointerlockchange', () => {
   }
 });
 
-// Desktop Controls
+// Desktop Controls (Explicitly blocked on Mobile devices)
 window.addEventListener('mousedown', (e) => {
+  if (player.isMobile) return;
   if (!player.locked && 'requestPointerLock' in document.body) return;
   if (e.button === 0) { firing = true; }
   if (e.button === 2) { weapon.aiming = true; player.aiming = true; }
 });
 window.addEventListener('mouseup', (e) => {
+  if (player.isMobile) return;
   if (e.button === 0) firing = false;
   if (e.button === 2) { weapon.aiming = false; player.aiming = false; }
 });
@@ -276,7 +278,7 @@ function animate() {
   }
   elapsed += dt;
 
-  // Sync mobile button states with game state
+  // Sync mobile button states directly with game state
   if (player.isMobile) {
     firing = player.mobileFiring;
     weapon.aiming = player.mobileAiming;
