@@ -102,13 +102,17 @@ export class Player {
     let joyCenter = { x: 0, y: 0 };
 
     joyBase.addEventListener('touchstart', (e) => {
+      e.stopPropagation(); // FIXED: Prevents event bubbling to firing listeners
+      e.preventDefault();
       const touch = e.changedTouches[0];
       joyTouchId = touch.identifier;
       const rect = joyBase.getBoundingClientRect();
       joyCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    });
+    }, { passive: false });
 
     joyBase.addEventListener('touchmove', (e) => {
+      e.stopPropagation(); // FIXED: Prevents shooting while dragging joystick
+      e.preventDefault();
       for (let touch of e.changedTouches) {
         if (touch.identifier === joyTouchId) {
           const dx = touch.clientX - joyCenter.x;
@@ -124,9 +128,10 @@ export class Player {
           this.touchMove.y = -stickY / 50; // Invert Y for forward/back
         }
       }
-    });
+    }, { passive: false });
 
     const resetJoy = (e) => {
+      e.stopPropagation();
       for (let touch of e.changedTouches) {
         if (touch.identifier === joyTouchId) {
           joyTouchId = null;
@@ -188,8 +193,18 @@ export class Player {
         display: flex; align-items: center; justify-content: center;
         pointer-events: auto; touch-action: none;
       `;
-      btn.addEventListener('touchstart', (e) => { e.preventDefault(); onClick(true); });
-      btn.addEventListener('touchend', (e) => { e.preventDefault(); onClick(false); });
+      btn.addEventListener('touchstart', (e) => { 
+        e.stopPropagation(); // FIXED: Prevents UI buttons from firing gun
+        e.preventDefault(); 
+        onClick(true); 
+      }, { passive: false });
+
+      btn.addEventListener('touchend', (e) => { 
+        e.stopPropagation(); 
+        e.preventDefault(); 
+        onClick(false); 
+      }, { passive: false });
+
       return btn;
     };
 
