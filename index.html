@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NIGHTFALL PROTOCOL</title>
+<link rel="stylesheet" href="style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+  <canvas id="scene"></canvas>
+
+  <!-- ===================== HUD ===================== -->
+  <div id="hud">
+    <div id="vignette"></div>
+    <div id="damage-flash"></div>
+
+    <div id="crosshair">
+      <div class="ch-dot"></div>
+      <div class="ch-line ch-top"></div>
+      <div class="ch-line ch-bottom"></div>
+      <div class="ch-line ch-left"></div>
+      <div class="ch-line ch-right"></div>
+    </div>
+    <div id="hitmarker"></div>
+
+    <div id="top-bar">
+      <div id="objective-panel">
+        <div class="op-label">MISSION</div>
+        <div id="objective-text">Standby...</div>
+      </div>
+      <div id="mission-timer"></div>
+    </div>
+
+    <div id="bottom-bar">
+      <div id="health-block">
+        <div class="stat-label">HEALTH</div>
+        <div id="health-bar-bg"><div id="health-bar-fill"></div></div>
+      </div>
+      <div id="ammo-block">
+        <div id="ammo-current">30</div>
+        <div id="ammo-divider">/</div>
+        <div id="ammo-reserve">90</div>
+        <div id="reload-prompt">RELOADING</div>
+      </div>
+    </div>
+
+    <div id="killfeed"></div>
+    <div id="stamina-bar-bg"><div id="stamina-bar-fill"></div></div>
+
+    <div id="interact-prompt"></div>
+  </div>
+
+  <!-- ===================== MENUS ===================== -->
+  <div id="start-screen" class="menu-screen">
+    <div class="menu-inner">
+      <div class="game-title">NIGHTFALL<span>PROTOCOL</span></div>
+      <div class="game-subtitle">SINGLE OPERATION &mdash; BLACKGATE COMPOUND</div>
+      <button id="start-btn">CLICK TO DEPLOY</button>
+      <div class="controls-hint">
+        WASD MOVE &nbsp;·&nbsp; MOUSE LOOK &nbsp;·&nbsp; LMB FIRE &nbsp;·&nbsp; RMB AIM<br/>
+        SHIFT SPRINT &nbsp;·&nbsp; CTRL CROUCH &nbsp;·&nbsp; SPACE JUMP &nbsp;·&nbsp; R RELOAD &nbsp;·&nbsp; E INTERACT
+      </div>
+    </div>
+  </div>
+
+  <div id="pause-screen" class="menu-screen hidden">
+    <div class="menu-inner">
+      <div class="game-title small">PAUSED</div>
+      <button id="resume-btn">RESUME</button>
+    </div>
+  </div>
+
+  <div id="end-screen" class="menu-screen hidden">
+    <div class="menu-inner">
+      <div id="end-title" class="game-title small">MISSION COMPLETE</div>
+      <div id="end-subtitle" class="game-subtitle"></div>
+      <button id="restart-btn">REDEPLOY</button>
+    </div>
+  </div>
+
+  <div id="loading-screen" class="menu-screen">
+    <div class="menu-inner">
+      <div class="game-title small">LOADING</div>
+      <div class="loading-bar-bg"><div id="loading-bar-fill"></div></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
