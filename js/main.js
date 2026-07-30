@@ -28,7 +28,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 400);
 const baseFov = 72, aimFov = 46;
-scene.add(camera); // required so camera-attached weapon model is traversed by the renderer
+scene.add(camera);
 
 // ---------------- post-processing ----------------
 const composer = new EffectComposer(renderer);
@@ -69,12 +69,11 @@ level.spawnPoints.forEach((sp, i) => {
 });
 mission.setPriorityTotal(priorityCount);
 
-const raycaster = new THREE.Raycaster();
-
 // ---------------- interaction state ----------------
 let started = false;
 let paused = false;
 let interactHeld = false;
+let firing = false;
 
 const startScreen = document.getElementById('start-screen');
 const pauseScreen = document.getElementById('pause-screen');
@@ -82,7 +81,7 @@ const endScreen = document.getElementById('end-screen');
 const loadingScreen = document.getElementById('loading-screen');
 const loadingFill = document.getElementById('loading-bar-fill');
 
-// fake asset "loading" progress (procedural gen is near-instant, but keeps UX consistent)
+// Asset Loading Simulation
 let loadPct = 0;
 const loadInterval = setInterval(() => {
   loadPct = Math.min(100, loadPct + Math.random() * 30 + 10);
@@ -93,11 +92,23 @@ const loadInterval = setInterval(() => {
   }
 }, 120);
 
-document.getElementById('start-btn').addEventListener('click', () => {
+// Safe deploy/start function for Desktop & Mobile
+function launchGame() {
   unlockAudio();
-  player.requestLock();
-});
-document.getElementById('resume-btn').addEventListener('click', () => player.requestLock());
+  started = true;
+  paused = false;
+  startScreen.classList.add('hidden');
+  pauseScreen.classList.add('hidden');
+
+  // Request pointer lock only on supported devices (Desktop)
+  if ('requestPointerLock' in document.body && player.requestLock) {
+    player.requestLock();
+  }
+}
+
+document.getElementById('start-btn').addEventListener('click', launchGame);
+document.getElementById('start-btn').addEventListener('touchstart', launchGame, { passive: true });
+document.getElementById('resume-btn').addEventListener('click', launchGame);
 document.getElementById('restart-btn').addEventListener('click', () => window.location.reload());
 
 document.addEventListener('pointerlockchange', () => {
@@ -106,14 +117,15 @@ document.addEventListener('pointerlockchange', () => {
     started = true; paused = false;
     startScreen.classList.add('hidden');
     pauseScreen.classList.add('hidden');
-  } else if (started && !mission.done) {
+  } else if (started && !mission.done && 'requestPointerLock' in document.body) {
     paused = true;
     pauseScreen.classList.remove('hidden');
   }
 });
 
+// Desktop Controls
 window.addEventListener('mousedown', (e) => {
-  if (!player.locked) return;
+  if (!player.locked && 'requestPointerLock' in document.body) return;
   if (e.button === 0) { firing = true; }
   if (e.button === 2) { weapon.aiming = true; player.aiming = true; }
 });
@@ -129,14 +141,56 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyE') interactHeld = false;
 });
+
+// ---------------- Mobile Touch Controls ----------------
+let touchStartX = 0;
+let touchStartY = 0;
+
+window.addEventListener('touchstart', (e) => {
+  if (!started) return;
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+
+  // Auto-fire or tap action on screen touch for mobile
+  if (e.touches.length === 1) {
+    firing = true;
+  } else if (e.touches.length === 2) {
+    // Secondary touch aims down sights
+    weapon.aiming = true;
+    player.aiming = true;
+  }
+}, { passive: true });
+
+window.addEventListener('touchmove', (e) => {
+  if (!started || e.touches.length === 0) return;
+  const touch = e.touches[0];
+  const deltaX = touch.clientX - touchStartX;
+  const deltaY = touch.clientY - touchStartY;
+
+  // Drag to look around
+  camera.rotation.y -= deltaX * 0.005;
+  camera.rotation.x -= deltaY * 0.005;
+  camera.rotation.x = clamp(camera.rotation.x, -Math.PI / 2.5, Math.PI / 2.5);
+
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}, { passive: true });
+
+window.addEventListener('touchend', (e) => {
+  if (e.touches.length === 0) {
+    firing = false;
+    weapon.aiming = false;
+    player.aiming = false;
+  }
+}, { passive: true });
+
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer.setSize(window.innerWidth, window.innerHeight);
 });
-
-let firing = false;
 
 // ---------------- hitscan ----------------
 function performHitscan(shot) {
@@ -145,13 +199,11 @@ function performHitscan(shot) {
   let bestT = shot.range;
   let hit = null;
 
-  // walls
   for (const b of level.colliders) {
     const t = rayBoxDistance(origin, dir, b);
     if (t < bestT) { bestT = t; hit = { type: 'wall', t }; }
   }
 
-  // enemies (torso + head spheres)
   for (const enemy of enemies) {
     if (!enemy.alive) continue;
     const targets = [
@@ -237,7 +289,7 @@ function spawnReinforcements() {
 
 // ---------------- end screen ----------------
 function showEndScreen() {
-  document.exitPointerLock();
+  if (document.exitPointerLock) document.exitPointerLock();
   const title = document.getElementById('end-title');
   const subtitle = document.getElementById('end-subtitle');
   if (mission.result === 'win') {
