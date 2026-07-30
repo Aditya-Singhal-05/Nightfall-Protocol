@@ -41,10 +41,12 @@ export class Player {
 
     // Mobile Control States
     this.isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    this.touchMove = { x: 0, y: 0 }; // Virtual Joystick (-1 to 1)
+    this.touchMove = { x: 0, y: 0 };
     this.touchLookId = null;
     this.lastTouchLook = { x: 0, y: 0 };
     this.mobileJump = false;
+    this.mobileFiring = false; // Tracks explicit FIRE button press
+    this.mobileAiming = false; // Tracks explicit AIM button press
 
     this._bindListeners();
     this._initListeners();
@@ -97,12 +99,11 @@ export class Player {
     `;
     joyBase.appendChild(joyStick);
 
-    // Joystick Touch Handling
     let joyTouchId = null;
     let joyCenter = { x: 0, y: 0 };
 
     joyBase.addEventListener('touchstart', (e) => {
-      e.stopPropagation(); // STOPS FIRE EVENT
+      e.stopPropagation();
       const touch = e.changedTouches[0];
       joyTouchId = touch.identifier;
       const rect = joyBase.getBoundingClientRect();
@@ -110,7 +111,7 @@ export class Player {
     }, { passive: false });
 
     joyBase.addEventListener('touchmove', (e) => {
-      e.stopPropagation(); // STOPS FIRE EVENT DURING DRAG
+      e.stopPropagation();
       for (let touch of e.changedTouches) {
         if (touch.identifier === joyTouchId) {
           const dx = touch.clientX - joyCenter.x;
@@ -123,7 +124,7 @@ export class Player {
           joyStick.style.transform = `translate(${stickX}px, ${stickY}px)`;
 
           this.touchMove.x = stickX / 50;
-          this.touchMove.y = -stickY / 50; // Invert Y for forward/back
+          this.touchMove.y = -stickY / 50;
         }
       }
     }, { passive: false });
@@ -141,7 +142,7 @@ export class Player {
     joyBase.addEventListener('touchend', resetJoy);
     joyBase.addEventListener('touchcancel', resetJoy);
 
-    // Right Side Touch Screen Look Area
+    // Right Side Screen Drag Area (LOOK ONLY)
     const lookArea = document.createElement('div');
     lookArea.style.cssText = `
       position: absolute; top: 0; right: 0; width: 50%; height: 100%;
@@ -179,29 +180,35 @@ export class Player {
     lookArea.addEventListener('touchend', resetLook);
     lookArea.addEventListener('touchcancel', resetLook);
 
-    // Helper Action Buttons (Jump, Crouch, Sprint)
-    const createBtn = (text, bottom, right, onClick) => {
+    // Helper Action Button Creator
+    const createBtn = (text, bottom, right, width = 60, height = 60, color = 'rgba(255,255,255,0.25)', onClick) => {
       const btn = document.createElement('div');
       btn.innerText = text;
       btn.style.cssText = `
         position: absolute; bottom: ${bottom}px; right: ${right}px;
-        width: 60px; height: 60px; border-radius: 50%;
-        background: rgba(255,255,255,0.25); border: 2px solid #fff;
-        color: #fff; font-family: sans-serif; font-weight: bold; font-size: 14px;
+        width: ${width}px; height: ${height}px; border-radius: 50%;
+        background: ${color}; border: 2px solid #fff;
+        color: #fff; font-family: sans-serif; font-weight: bold; font-size: 13px;
         display: flex; align-items: center; justify-content: center;
         pointer-events: auto; touch-action: none;
       `;
       btn.addEventListener('touchstart', (e) => { e.stopPropagation(); onClick(true); }, { passive: false });
       btn.addEventListener('touchend', (e) => { e.stopPropagation(); onClick(false); }, { passive: false });
+      btn.addEventListener('touchcancel', (e) => { e.stopPropagation(); onClick(false); }, { passive: false });
       return btn;
     };
 
-    const jumpBtn = createBtn('JUMP', 40, 40, (val) => { this.mobileJump = val; });
-    const crouchBtn = createBtn('CROUCH', 40, 115, (val) => { this.keys['ControlLeft'] = val; });
-    const sprintBtn = createBtn('RUN', 115, 40, (val) => { this.keys['ShiftLeft'] = val; });
+    // Buttons Setup
+    const fireBtn = createBtn('FIRE', 100, 40, 75, 75, 'rgba(255, 60, 60, 0.5)', (val) => { this.mobileFiring = val; });
+    const aimBtn = createBtn('AIM', 190, 40, 60, 60, 'rgba(60, 140, 255, 0.5)', (val) => { this.mobileAiming = val; });
+    const jumpBtn = createBtn('JUMP', 30, 130, 55, 55, 'rgba(255,255,255,0.25)', (val) => { this.mobileJump = val; });
+    const crouchBtn = createBtn('CROUCH', 30, 200, 55, 55, 'rgba(255,255,255,0.25)', (val) => { this.keys['ControlLeft'] = val; });
+    const sprintBtn = createBtn('RUN', 30, 60, 55, 55, 'rgba(255,255,255,0.25)', (val) => { this.keys['ShiftLeft'] = val; });
 
     this.uiContainer.appendChild(joyBase);
     this.uiContainer.appendChild(lookArea);
+    this.uiContainer.appendChild(fireBtn);
+    this.uiContainer.appendChild(aimBtn);
     this.uiContainer.appendChild(jumpBtn);
     this.uiContainer.appendChild(crouchBtn);
     this.uiContainer.appendChild(sprintBtn);
