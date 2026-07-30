@@ -142,46 +142,61 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyE') interactHeld = false;
 });
 
-// ---------------- Mobile Touch Controls ----------------
+// ---------------- Mobile Touch Controls (FIXED) ----------------
+let mainTouchLookId = null;
 let touchStartX = 0;
 let touchStartY = 0;
 
 window.addEventListener('touchstart', (e) => {
   if (!started) return;
-  const touch = e.touches[0];
-  touchStartX = touch.clientX;
-  touchStartY = touch.clientY;
 
-  // Auto-fire or tap action on screen touch for mobile
-  if (e.touches.length === 1) {
-    firing = true;
-  } else if (e.touches.length === 2) {
-    // Secondary touch aims down sights
-    weapon.aiming = true;
-    player.aiming = true;
+  for (let touch of e.changedTouches) {
+    // Ignore touches on UI elements or left half of screen (Joystick side)
+    if (touch.clientX < window.innerWidth / 2) continue;
+
+    // Track finger on the right side for aiming & shooting
+    if (mainTouchLookId === null) {
+      mainTouchLookId = touch.identifier;
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+
+      if (e.touches.length === 1) {
+        firing = true;
+      } else if (e.touches.length >= 2) {
+        weapon.aiming = true;
+        player.aiming = true;
+      }
+    }
   }
 }, { passive: true });
 
 window.addEventListener('touchmove', (e) => {
-  if (!started || e.touches.length === 0) return;
-  const touch = e.touches[0];
-  const deltaX = touch.clientX - touchStartX;
-  const deltaY = touch.clientY - touchStartY;
+  if (!started) return;
 
-  // Drag to look around
-  camera.rotation.y -= deltaX * 0.005;
-  camera.rotation.x -= deltaY * 0.005;
-  camera.rotation.x = clamp(camera.rotation.x, -Math.PI / 2.5, Math.PI / 2.5);
+  for (let touch of e.changedTouches) {
+    if (touch.identifier === mainTouchLookId) {
+      const deltaX = touch.clientX - touchStartX;
+      const deltaY = touch.clientY - touchStartY;
 
-  touchStartX = touch.clientX;
-  touchStartY = touch.clientY;
+      // Drag to look around
+      camera.rotation.y -= deltaX * 0.005;
+      camera.rotation.x -= deltaY * 0.005;
+      camera.rotation.x = clamp(camera.rotation.x, -Math.PI / 2.5, Math.PI / 2.5);
+
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    }
+  }
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
-  if (e.touches.length === 0) {
-    firing = false;
-    weapon.aiming = false;
-    player.aiming = false;
+  for (let touch of e.changedTouches) {
+    if (touch.identifier === mainTouchLookId) {
+      mainTouchLookId = null;
+      firing = false;
+      weapon.aiming = false;
+      player.aiming = false;
+    }
   }
 }, { passive: true });
 
