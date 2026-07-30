@@ -142,52 +142,6 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyE') interactHeld = false;
 });
 
-// ---------------- Mobile Touch Controls (REFACTORED FIX) ----------------
-let shootTouchId = null;
-
-window.addEventListener('touchstart', (e) => {
-  if (!started) return;
-
-  for (let touch of e.changedTouches) {
-    // 1. MUST be on the right half of the screen
-    if (touch.clientX < window.innerWidth / 2) continue;
-
-    // 2. MUST NOT be touching a UI button or element
-    const target = document.elementFromPoint(touch.clientX, touch.clientY);
-    if (target && (target.tagName === 'BUTTON' || target.closest('button') || target.closest('.ui-element'))) {
-      continue;
-    }
-
-    // 3. Assign this specific touch ID to shooting
-    if (shootTouchId === null) {
-      shootTouchId = touch.identifier;
-      firing = true;
-    }
-  }
-}, { passive: true });
-
-window.addEventListener('touchend', (e) => {
-  for (let touch of e.changedTouches) {
-    if (touch.identifier === shootTouchId) {
-      shootTouchId = null;
-      firing = false;
-      weapon.aiming = false;
-      player.aiming = false;
-    }
-  }
-}, { passive: true });
-
-window.addEventListener('touchcancel', (e) => {
-  for (let touch of e.changedTouches) {
-    if (touch.identifier === shootTouchId) {
-      shootTouchId = null;
-      firing = false;
-      weapon.aiming = false;
-      player.aiming = false;
-    }
-  }
-}, { passive: true });
-
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -321,6 +275,13 @@ function animate() {
     return;
   }
   elapsed += dt;
+
+  // Sync mobile button states with game state
+  if (player.isMobile) {
+    firing = player.mobileFiring;
+    weapon.aiming = player.mobileAiming;
+    player.aiming = player.mobileAiming;
+  }
 
   player.update(dt, level.colliders);
   if (!player.alive) mission.playerDied();
