@@ -102,8 +102,7 @@ export class Player {
     let joyCenter = { x: 0, y: 0 };
 
     joyBase.addEventListener('touchstart', (e) => {
-      e.stopPropagation(); // FIXED: Prevents event bubbling to firing listeners
-      e.preventDefault();
+      e.stopPropagation(); // STOPS FIRE EVENT
       const touch = e.changedTouches[0];
       joyTouchId = touch.identifier;
       const rect = joyBase.getBoundingClientRect();
@@ -111,8 +110,7 @@ export class Player {
     }, { passive: false });
 
     joyBase.addEventListener('touchmove', (e) => {
-      e.stopPropagation(); // FIXED: Prevents shooting while dragging joystick
-      e.preventDefault();
+      e.stopPropagation(); // STOPS FIRE EVENT DURING DRAG
       for (let touch of e.changedTouches) {
         if (touch.identifier === joyTouchId) {
           const dx = touch.clientX - joyCenter.x;
@@ -193,18 +191,8 @@ export class Player {
         display: flex; align-items: center; justify-content: center;
         pointer-events: auto; touch-action: none;
       `;
-      btn.addEventListener('touchstart', (e) => { 
-        e.stopPropagation(); // FIXED: Prevents UI buttons from firing gun
-        e.preventDefault(); 
-        onClick(true); 
-      }, { passive: false });
-
-      btn.addEventListener('touchend', (e) => { 
-        e.stopPropagation(); 
-        e.preventDefault(); 
-        onClick(false); 
-      }, { passive: false });
-
+      btn.addEventListener('touchstart', (e) => { e.stopPropagation(); onClick(true); }, { passive: false });
+      btn.addEventListener('touchend', (e) => { e.stopPropagation(); onClick(false); }, { passive: false });
       return btn;
     };
 
