@@ -142,57 +142,45 @@ window.addEventListener('keyup', (e) => {
   if (e.code === 'KeyE') interactHeld = false;
 });
 
-// ---------------- Mobile Touch Controls (FIXED) ----------------
-let mainTouchLookId = null;
-let touchStartX = 0;
-let touchStartY = 0;
+// ---------------- Mobile Touch Controls (REFACTORED FIX) ----------------
+let shootTouchId = null;
 
 window.addEventListener('touchstart', (e) => {
   if (!started) return;
 
   for (let touch of e.changedTouches) {
-    // Ignore touches on UI elements or left half of screen (Joystick side)
+    // 1. MUST be on the right half of the screen
     if (touch.clientX < window.innerWidth / 2) continue;
 
-    // Track finger on the right side for aiming & shooting
-    if (mainTouchLookId === null) {
-      mainTouchLookId = touch.identifier;
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
-
-      if (e.touches.length === 1) {
-        firing = true;
-      } else if (e.touches.length >= 2) {
-        weapon.aiming = true;
-        player.aiming = true;
-      }
+    // 2. MUST NOT be touching a UI button or element
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (target && (target.tagName === 'BUTTON' || target.closest('button') || target.closest('.ui-element'))) {
+      continue;
     }
-  }
-}, { passive: true });
 
-window.addEventListener('touchmove', (e) => {
-  if (!started) return;
-
-  for (let touch of e.changedTouches) {
-    if (touch.identifier === mainTouchLookId) {
-      const deltaX = touch.clientX - touchStartX;
-      const deltaY = touch.clientY - touchStartY;
-
-      // Drag to look around
-      camera.rotation.y -= deltaX * 0.005;
-      camera.rotation.x -= deltaY * 0.005;
-      camera.rotation.x = clamp(camera.rotation.x, -Math.PI / 2.5, Math.PI / 2.5);
-
-      touchStartX = touch.clientX;
-      touchStartY = touch.clientY;
+    // 3. Assign this specific touch ID to shooting
+    if (shootTouchId === null) {
+      shootTouchId = touch.identifier;
+      firing = true;
     }
   }
 }, { passive: true });
 
 window.addEventListener('touchend', (e) => {
   for (let touch of e.changedTouches) {
-    if (touch.identifier === mainTouchLookId) {
-      mainTouchLookId = null;
+    if (touch.identifier === shootTouchId) {
+      shootTouchId = null;
+      firing = false;
+      weapon.aiming = false;
+      player.aiming = false;
+    }
+  }
+}, { passive: true });
+
+window.addEventListener('touchcancel', (e) => {
+  for (let touch of e.changedTouches) {
+    if (touch.identifier === shootTouchId) {
+      shootTouchId = null;
       firing = false;
       weapon.aiming = false;
       player.aiming = false;
